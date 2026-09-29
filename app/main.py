@@ -57,6 +57,9 @@ def get_cost_guard() -> CostGuard:
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """CHO SẴN — chạy lúc app khởi động và lúc tắt."""
+    # Fail fast: thiếu AGENT_API_KEY thì process chết ngay lúc boot,
+    # không để health check xanh rồi chạy với secret trống.
+    get_settings()
     lifecycle.install()
     log_event("service_started", service=SERVICE_NAME, version=SERVICE_VERSION)
     yield
@@ -77,17 +80,21 @@ class AskRequest(BaseModel):
 def health():
     """Liveness probe — process còn sống không?
 
-    TODO (CP1 + CP4):
-      - Đang tắt dần (``lifecycle.shutting_down``) → trả
-        ``JSONResponse(status_code=503, content={"status": "shutting_down"})``
-      - Bình thường → ``{"status": "ok", "service": SERVICE_NAME,
-        "version": SERVICE_VERSION}`` (mặc định FastAPI trả 200).
+    - Đang tắt dần (``lifecycle.shutting_down``) → 503
+      ``{"status": "shutting_down"}``
+    - Bình thường → 200
+      ``{"status": "ok", "service": ..., "version": ...}``
 
     Endpoint này phải **nhẹ**: không gọi Redis, không query DB. Nó chỉ trả
-    lời câu hỏi "có cần restart container này không?". Nếu nó phụ thuộc
-    Redis, Redis chết một nhịp là cả cụm container bị restart theo.
+    lời câu hỏi "có cần restart container này không?".
     """
-    raise NotImplementedError("TODO (CP1/CP4): cài đặt /health")
+    if lifecycle.shutting_down:
+        return JSONResponse(status_code=503, content={"status": "shutting_down"})
+    return {
+        "status": "ok",
+        "service": SERVICE_NAME,
+        "version": SERVICE_VERSION,
+    }
 
 
 @app.get("/ready")
