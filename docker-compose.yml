@@ -37,8 +37,11 @@ services:
 
   agent:
     build: .
+    # Chỉ map cổng container 8000 → host gán cổng ngẫu nhiên.
+    # Nhờ đó --scale agent=3 không đụng nhau / không tranh 0.0.0.0:8000.
+    # Xem cổng thật: docker compose ps
     ports:
-      - "8000:8000"
+      - "8000"
     environment:
       AGENT_API_KEY: ${AGENT_API_KEY}
       REDIS_URL: redis://redis:6379/0
