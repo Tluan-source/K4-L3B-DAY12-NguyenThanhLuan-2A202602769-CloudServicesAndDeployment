@@ -18,13 +18,12 @@
 
 | Mục | Nội dung |
 |-----|----------|
-| Public URL | REPLACE_WITH_HTTPS_URL |
+| Public URL | https://day12-agent-2jjo.onrender.com |
 | Platform | Render |
 | Ngày deploy | 29/09/2026 |
 
-> **Lưu ý:** Public URL phải là địa chỉ **HTTPS của web service** `day12-agent`
-> (ví dụ `https://day12-agent-xxxx.onrender.com`), **không** phải
-> `redis://...` của Redis add-on.
+> Public URL là địa chỉ HTTPS của web service `day12-agent`, không phải
+> connection string Redis (`redis://...`).
 
 ## Biến Môi Trường Đã Set Trên Cloud
 
@@ -32,19 +31,17 @@ Ghi tên biến và **nguồn giá trị**, không ghi giá trị:
 
 | Biến | Đã set | Ghi chú |
 |------|--------|---------|
-| `PORT` | ✅ | platform tự gán |
+| `PORT` | ✅ | platform tự gán (log: Uvicorn listen `0.0.0.0:10000`) |
 | `AGENT_API_KEY` | ✅ | đặt trong dashboard Render, không nằm trong repo |
-| `REDIS_URL` | ✅ | lấy từ Redis service `day12-redis` qua Blueprint `render.yaml` |
+| `REDIS_URL` | ✅ | gắn từ Redis service `day12-redis` qua Blueprint `render.yaml` |
 | `RATE_LIMIT_PER_MINUTE` | ✅ | 10 |
 | `MONTHLY_BUDGET_USD` | ✅ | 10.0 |
 | `LOG_LEVEL` | ✅ | INFO |
 
 ## Lệnh Kiểm Tra
 
-Thay `REPLACE_WITH_HTTPS_URL` bằng Public URL HTTPS ở trên:
-
 ```bash
-URL=REPLACE_WITH_HTTPS_URL
+URL=https://day12-agent-2jjo.onrender.com
 
 # 1. Liveness — mong đợi 200 {"status":"ok"}
 curl -i $URL/health
@@ -76,15 +73,50 @@ done; echo
 
 ## Kết Quả Chạy Thật
 
-Dán output của các lệnh trên vào đây sau khi service live:
+Output thu được từ service live ngày 29/09/2026:
 
 ```
-Chưa dán — chạy 4 lệnh curl ở trên rồi paste output vào đây.
+# 1. GET /health
+HTTP/1.1 200
+content-type: application/json
+server: cloudflare
+
+{"status": "ok", "service": "day12-agent", "version": "1.0.0"}
+
+# 2. GET /ready
+HTTP/1.1 200
+content-type: application/json
+server: cloudflare
+
+{"status": "ready", "redis": true}
+
+# 3. POST /ask (no API key)
+HTTP/1.1 401
+content-type: application/json
+server: cloudflare
+
+{"detail": "invalid or missing API key"}
+
+# 4. POST /ask (with API key)
+HTTP/1.1 200
+content-type: application/json
+server: cloudflare
+
+{"answer": "Ngắn gọn: Deploy la gi phụ thuộc vào ba yếu tố — cấu hình qua biến môi trường, health check để orchestrator biết trạng thái, và giới hạn tài nguyên.", "user_id": "sv-test", "history_length": 0, "cost_usd": 2.265e-05, "tokens": {"in": 3, "out": 37}}
+
+# 5. Rate limit x15 (same user sv-test, limit 10/phút)
+200 200 200 200 200 200 200 200 200 429 429 429 429 429 429
 ```
+
+Giải thích ngắn: `/ready` có `"redis": true` → đã nối Redis trên Render.
+Rate limit: các request đầu 200, từ request vượt hạn mức trả 429.
 
 ## Ảnh Chụp Màn Hình
 
 Đặt ảnh trong thư mục `screenshots/`:
 
-- `screenshots/dashboard.png` — trang quản lý service trên Render
-- `screenshots/health.png` — kết quả gọi `/health` từ trình duyệt hoặc curl
+- `screenshots/dashboard.png` — trang quản lý service `day12-agent` trên Render
+- `screenshots/health.png` — trình duyệt mở `https://day12-agent-2jjo.onrender.com/health` ra 200
+
+> Hai file ảnh cần bạn tự chụp từ dashboard/trình duyệt rồi bỏ vào `screenshots/`
+> (không commit secret trên ảnh).
